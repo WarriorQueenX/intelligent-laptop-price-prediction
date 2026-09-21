@@ -422,3 +422,47 @@ https://www.kaggle.com/datasets/juanmerinobermejo/laptops-price-dataset
 K. C. Hansel, V. A. Tanoto, P. A. Suri, and M. Fajar, "Comparative Analysis of Machine Learning Algorithms for Laptop Value Estimation," Procedia Computer Science, vol. 245, pp. 825–833, 2024.
 Y. Karakuş and T. T. Bilgin, "Laptop Price Range Prediction with Machine Learning Methods," International Journal of Multidisciplinary Studies and Innovative Technologies, vol. 8, no. 1, pp. 40–45, 2024.
 P. Tian, "Research on Laptop Price Predictive Model Based on Linear Regression, Random Forest and XGBoost," Highlights in Science, Engineering and Technology, vol. 85, pp. 265–271, 2024.
+
+---
+
+## Web App
+
+An interactive React front-end for the trained model, in `web/`.
+
+### How it works
+
+`export_model.py` re-runs the notebook's Linear Regression pipeline and dumps the
+intercept, the `StandardScaler` mean/scale, and every one-hot coefficient into
+`web/src/data/modelData.json`. The browser then reproduces predictions with plain
+arithmetic — no ML library is shipped to the client.
+
+```bash
+python export_model.py     # retrain + regenerate modelData.json
+cd web && npm install && npm run dev
+```
+
+### Features
+
+| Tab | What it does |
+| --- | --- |
+| Single Prediction | Pick a laptop (searchable) or enter custom specs. Shows predicted vs actual price, the % gap, a value badge (under / fair / over at the ±10% threshold), and the top features driving that specific price. |
+| Feature Impact | Sliders and dropdowns for RAM, storage, screen, brand, CPU, GPU, storage type, touch and status. Price updates live, with line charts sweeping each numeric feature across its range. |
+| Compare Laptops | Compare 2–5 laptops side by side. Differing specs are highlighted, each price gap is broken down by which spec caused how much of it, and the best-value laptop is flagged. |
+| Best Deals | Scores every listing and ranks the most under- and overpriced ones, filterable by brand and max price, with a listed-vs-predicted scatter plot. |
+| Budget Finder | Set a budget plus must-haves (brand, min RAM/storage, SSD, dedicated GPU, new only) and get a top pick ranked by best specs or biggest discount. If nothing fits, it says what meeting those needs would cost. |
+| Dataset Insights | EDA summary: price distribution, average price by brand and by RAM, and which specs move the model's predictions the most. |
+
+The UI has light and dark themes (toggle in the header, remembered per browser)
+and works down to phone widths.
+
+Feature contributions are measured against an *average* laptop in the dataset, so
+`baseline + sum(contributions)` reconstructs the prediction exactly. This works
+because the model is linear.
+
+### Model performance
+
+| Metric | Value |
+| --- | --- |
+| Test R² | 0.873 |
+| Test MAE | $237.89 |
+| Rows | 2,156 (after dedup/cleaning) |
