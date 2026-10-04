@@ -4,7 +4,8 @@ import {
   CartesianGrid, ReferenceLine,
 } from 'recharts'
 import {
-  LAPTOPS, OPTIONS, LIMITS, predict, explain, valueRating, specOf, money, validate, formatValue,
+  LAPTOPS, OPTIONS, LIMITS, predict, explain, valueRating, specOf, money, moneyShort,
+  validate, formatValue, title, warrantyLabel,
 } from '../lib/model'
 import LaptopPicker from './LaptopPicker'
 import { useChartColors } from '../lib/ThemeContext'
@@ -29,14 +30,15 @@ function ContributionLabel({ x, y, width, height, value, fill }) {
       fontSize={11}
       fontWeight={600}
     >
-      {money(value)}
+      {moneyShort(value)}
     </text>
   )
 }
 
 const DEFAULT_SPEC = {
-  brand: 'Asus', cpu: 'Intel Core i5', ram: 16, storage: 512,
-  storageType: 'SSD', gpu: 'Integrated', screen: 15.6, touch: 'No', status: 'New',
+  brand: 'asus', processorBrand: 'intel', processorTier: 'core i5', cores: 8,
+  ram: 16, storage: 512, storageType: 'SSD', gpuBrand: 'intel', gpuType: 'integrated',
+  display: 15.6, resWidth: 1920, resHeight: 1080, touch: 'No', os: 'windows', warranty: '1',
 }
 
 export default function SinglePrediction() {
@@ -58,6 +60,10 @@ export default function SinglePrediction() {
   const top3 = drivers.slice(0, 3)
 
   const set = (k, v) => setCustomSpec((s) => ({ ...s, [k]: v }))
+  const setResolution = (label) => {
+    const r = OPTIONS.resolution.find((o) => o.label === label)
+    setCustomSpec((s) => ({ ...s, resWidth: r.width, resHeight: r.height }))
+  }
 
   return (
     <div className="stack">
@@ -81,20 +87,27 @@ export default function SinglePrediction() {
             <label className="field">
               <span>Brand</span>
               <select value={customSpec.brand} onChange={(e) => set('brand', e.target.value)}>
-                {OPTIONS.brand.map((b) => <option key={b}>{b}</option>)}
+                {OPTIONS.brand.map((b) => <option key={b} value={b}>{title(b)}</option>)}
               </select>
             </label>
             <label className="field">
-              <span>CPU</span>
-              <select value={customSpec.cpu} onChange={(e) => set('cpu', e.target.value)}>
-                {OPTIONS.cpu.map((c) => <option key={c}>{c}</option>)}
+              <span>Processor Brand</span>
+              <select value={customSpec.processorBrand}
+                onChange={(e) => set('processorBrand', e.target.value)}>
+                {OPTIONS.processorBrand.map((p) => <option key={p} value={p}>{title(p)}</option>)}
               </select>
             </label>
             <label className="field">
-              <span>GPU</span>
-              <select value={customSpec.gpu} onChange={(e) => set('gpu', e.target.value)}>
-                {OPTIONS.gpu.map((g) => <option key={g}>{g}</option>)}
+              <span>Processor</span>
+              <select value={customSpec.processorTier}
+                onChange={(e) => set('processorTier', e.target.value)}>
+                {OPTIONS.processorTier.map((p) => <option key={p} value={p}>{title(p)}</option>)}
               </select>
+            </label>
+            <label className="field">
+              <span>CPU Cores</span>
+              <input type="number" min={LIMITS.cores.min} max={LIMITS.cores.max}
+                value={customSpec.cores} onChange={(e) => set('cores', Number(e.target.value))} />
             </label>
             <label className="field">
               <span>RAM (GB)</span>
@@ -109,13 +122,32 @@ export default function SinglePrediction() {
             <label className="field">
               <span>Storage Type</span>
               <select value={customSpec.storageType} onChange={(e) => set('storageType', e.target.value)}>
-                {OPTIONS.storageType.map((s) => <option key={s}>{s}</option>)}
+                {OPTIONS.storageType.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
             <label className="field">
-              <span>Screen (inches)</span>
-              <input type="number" step={0.1} min={LIMITS.screen.min} max={LIMITS.screen.max}
-                value={customSpec.screen} onChange={(e) => set('screen', Number(e.target.value))} />
+              <span>GPU Brand</span>
+              <select value={customSpec.gpuBrand} onChange={(e) => set('gpuBrand', e.target.value)}>
+                {OPTIONS.gpuBrand.map((g) => <option key={g} value={g}>{title(g)}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>GPU Type</span>
+              <select value={customSpec.gpuType} onChange={(e) => set('gpuType', e.target.value)}>
+                {OPTIONS.gpuType.map((g) => <option key={g} value={g}>{title(g)}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Display (inches)</span>
+              <input type="number" step={0.1} min={LIMITS.display.min} max={LIMITS.display.max}
+                value={customSpec.display} onChange={(e) => set('display', Number(e.target.value))} />
+            </label>
+            <label className="field">
+              <span>Resolution</span>
+              <select value={`${customSpec.resWidth} x ${customSpec.resHeight}`}
+                onChange={(e) => setResolution(e.target.value)}>
+                {OPTIONS.resolution.map((r) => <option key={r.label}>{r.label}</option>)}
+              </select>
             </label>
             <label className="field">
               <span>Touch Screen</span>
@@ -124,9 +156,15 @@ export default function SinglePrediction() {
               </select>
             </label>
             <label className="field">
-              <span>Status</span>
-              <select value={customSpec.status} onChange={(e) => set('status', e.target.value)}>
-                {OPTIONS.status.map((s) => <option key={s}>{s}</option>)}
+              <span>Operating System</span>
+              <select value={customSpec.os} onChange={(e) => set('os', e.target.value)}>
+                {OPTIONS.os.map((o) => <option key={o} value={o}>{title(o)}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Warranty</span>
+              <select value={customSpec.warranty} onChange={(e) => set('warranty', e.target.value)}>
+                {OPTIONS.warranty.map((w) => <option key={w} value={w}>{warrantyLabel(w)}</option>)}
               </select>
             </label>
           </div>
@@ -195,10 +233,10 @@ export default function SinglePrediction() {
                   margin={{ left: 12, right: 56, top: 5, bottom: 5 }}>
                   <CartesianGrid horizontal={false} stroke={c.grid} strokeDasharray="3 3" />
                   {/* Slack at both ends so the outside labels stay inside the plot */}
-                  <XAxis type="number" tickFormatter={(v) => `$${Math.round(v)}`}
-                    domain={['dataMin - 60', 'dataMax + 60']} tickCount={6}
+                  <XAxis type="number" tickFormatter={moneyShort}
+                    domain={['dataMin - 4000', 'dataMax + 4000']} tickCount={6}
                     stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
-                  <YAxis type="category" dataKey="label" width={112}
+                  <YAxis type="category" dataKey="label" width={118}
                     stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
                   <Tooltip formatter={(v) => [money(v), 'Contribution']} {...tooltipStyle(c)} />
                   <ReferenceLine x={0} stroke={c.axis} />

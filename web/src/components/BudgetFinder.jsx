@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react'
-import { SCORED, OPTIONS, money } from '../lib/model'
+import { SCORED, OPTIONS, money, specLine, title } from '../lib/model'
 
 const SHOW = 8
-const BUDGET = { min: 200, max: 5000, step: 50 }
+const BUDGET = { min: 15000, max: 400000, step: 5000 }
 
 // Minimum-spec options; 0 means "no requirement".
 const RAM_MIN = [[0, 'Any'], [8, '8 GB+'], [16, '16 GB+'], [32, '32 GB+']]
-const STORAGE_MIN = [[0, 'Any'], [256, '256 GB+'], [500, '500 GB+'], [1000, '1 TB+']]
+const STORAGE_MIN = [[0, 'Any'], [256, '256 GB+'], [512, '512 GB+'], [1024, '1 TB+']]
 
 // "Best specs" ranks by the model's fair price — the most laptop the budget can buy.
 // "Biggest discount" ranks by how far below that fair price the listing sits.
@@ -26,10 +26,10 @@ const SORTS = {
 
 const TONE_CLASS = { green: 'pos-text', gray: '', red: 'neg-text' }
 
-const NO_NEEDS = { brand: 'Any', ram: 0, storage: 0, ssd: false, gpu: false, newOnly: false }
+const NO_NEEDS = { brand: 'Any', ram: 0, storage: 0, ssd: false, gpu: false, touch: false }
 
 export default function BudgetFinder() {
-  const [budget, setBudget] = useState(1000)
+  const [budget, setBudget] = useState(60000)
   const [needs, setNeeds] = useState(NO_NEEDS)
   const [sort, setSort] = useState('specs')
 
@@ -43,8 +43,8 @@ export default function BudgetFinder() {
       l.ram >= needs.ram &&
       l.storage >= needs.storage &&
       (!needs.ssd || l.storageType === 'SSD') &&
-      (!needs.gpu || l.gpu !== 'Integrated') &&
-      (!needs.newOnly || l.status === 'New')),
+      (!needs.gpu || l.gpuType === 'dedicated') &&
+      (!needs.touch || l.touch === 'Yes')),
     [needs]
   )
 
@@ -70,7 +70,7 @@ export default function BudgetFinder() {
             <span>Brand</span>
             <select value={needs.brand} onChange={(e) => need('brand', e.target.value)}>
               <option>Any</option>
-              {OPTIONS.brand.map((b) => <option key={b}>{b}</option>)}
+              {OPTIONS.brand.map((b) => <option key={b} value={b}>{title(b)}</option>)}
             </select>
           </label>
           <label className="field">
@@ -97,9 +97,9 @@ export default function BudgetFinder() {
             Dedicated GPU
           </label>
           <label>
-            <input type="checkbox" checked={needs.newOnly}
-              onChange={(e) => need('newOnly', e.target.checked)} />
-            Brand new only
+            <input type="checkbox" checked={needs.touch}
+              onChange={(e) => need('touch', e.target.checked)} />
+            Touch screen
           </label>
         </div>
 
@@ -183,10 +183,8 @@ export default function BudgetFinder() {
                 {rest.map((l) => (
                   <li key={l.id}>
                     <div className="deal-main">
-                      <span className="deal-name">{l.brand} {l.model}</span>
-                      <span className="deal-spec">
-                        {l.cpu} · {l.ram}GB · {l.storage}GB {l.storageType} · {l.gpu} · {l.screen}"
-                      </span>
+                      <span className="deal-name">{l.name}</span>
+                      <span className="deal-spec">{specLine(l)}</span>
                     </div>
                     <div className="deal-nums">
                       <span className="deal-price">{money(l.actualPrice)}</span>

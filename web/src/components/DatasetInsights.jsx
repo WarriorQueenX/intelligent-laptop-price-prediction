@@ -1,13 +1,14 @@
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts'
-import { LAPTOPS, METRICS, explain, specOf, money } from '../lib/model'
+import { LAPTOPS, METRICS, explain, specOf, money, moneyShort, title } from '../lib/model'
 import { useChartColors } from '../lib/ThemeContext'
 import { tooltipStyle } from '../lib/theme'
 
 const TOP_BRANDS = 12
 const MIN_LISTINGS = 10 // averages over a handful of listings are just noise
-const BUCKET = 250 // price histogram bin width in dollars
+const BUCKET = 25000 // price histogram bin width in rupees
+const CHEAP = 100000 // "budget" cut-off quoted in the histogram caption (₹1 lakh)
 
 /** Groups laptops by a key and returns [{ key, avg, count }] sorted by avg price. */
 function avgPriceBy(keyFn) {
@@ -25,7 +26,7 @@ function avgPriceBy(keyFn) {
 }
 
 // The whole dataset is static, so every aggregate is computed once at module load.
-const BRANDS = avgPriceBy((l) => l.brand)
+const BRANDS = avgPriceBy((l) => title(l.brand))
   .filter((b) => b.count >= MIN_LISTINGS)
   .slice(0, TOP_BRANDS)
 
@@ -38,28 +39,28 @@ const HISTOGRAM = (() => {
   const top = Math.max(...LAPTOPS.map((l) => l.actualPrice))
   const counts = new Array(Math.floor(top / BUCKET) + 1).fill(0)
   for (const l of LAPTOPS) counts[Math.floor(l.actualPrice / BUCKET)]++
-  return counts.map((count, i) => {
-    const start = i * BUCKET
-    return { label: start === 0 ? '$0' : `$${start / 1000}k`, start, count }
-  })
+  return counts.map((count, i) => ({ label: moneyShort(i * BUCKET), start: i * BUCKET, count }))
 })()
 
-// The model sees some specs twice — a 0/1 flag plus a category (is_touch + touch,
-// is_ssd + storage type, is_new + status, has_discrete_gpu + gpu). Those columns
-// always change together, so their effects are summed into one spec here.
+// The model sees some specs through more than one column (processor brand + tier,
+// GPU brand + type, screen width + height). Those move together when you change
+// the spec, so their effects are summed into one bar here.
 const SPEC_GROUPS = {
-  RAM: ['ram_gb'],
-  Storage: ['storage_gb'],
-  'Screen Size': ['screen_size'],
+  RAM: ['ram_memory'],
+  Storage: ['primary_storage_capacity'],
+  'Storage Type': ['primary_storage_type'],
+  'CPU Cores': ['num_cores'],
+  Processor: ['processor_brand', 'processor_tier'],
+  GPU: ['gpu_brand', 'gpu_type'],
   Brand: ['brand'],
-  CPU: ['cpu'],
-  GPU: ['gpu', 'has_discrete_gpu'],
-  'Storage Type': ['storage_type', 'is_ssd'],
-  'Touch Screen': ['touch', 'is_touch'],
-  Condition: ['status', 'is_new'],
+  'Display Size': ['display_size'],
+  Resolution: ['resolution_width', 'resolution_height'],
+  'Touch Screen': ['is_touch'],
+  'Operating System': ['OS'],
+  Warranty: ['year_of_warranty'],
 }
 
-// Importance = the average number of dollars a spec moves a laptop's prediction
+// Importance = the average number of rupees a spec moves a laptop's prediction
 // away from the dataset-average laptop, taken over every listing.
 const IMPORTANCE_ROWS = (() => {
   const sums = Object.fromEntries(Object.keys(SPEC_GROUPS).map((g) => [g, 0]))
@@ -77,7 +78,7 @@ const IMPORTANCE_ROWS = (() => {
 const PRICES = LAPTOPS.map((l) => l.actualPrice).sort((a, b) => a - b)
 const MEDIAN = PRICES[Math.floor(PRICES.length / 2)]
 const MEAN = PRICES.reduce((a, b) => a + b, 0) / PRICES.length
-const SHARE_UNDER_1500 = Math.round((PRICES.filter((p) => p < 1500).length / PRICES.length) * 100)
+const SHARE_CHEAP = Math.round((PRICES.filter((p) => p < CHEAP).length / PRICES.length) * 100)
 
 export default function DatasetInsights() {
   const c = useChartColors()
@@ -87,7 +88,7 @@ export default function DatasetInsights() {
       <div className="card">
         <h2>Dataset at a Glance</h2>
         <div className="stat-strip">
-          <Chip label="Laptops" value={LAPTOPS.length.toLocaleString()} />
+          <Chip label="Laptops" value={LAPTOPS.length.toLocaleString('en-IN')} />
           <Chip label="Brands" value={new Set(LAPTOPS.map((l) => l.brand)).size} />
           <Chip label="Median price" value={money(MEDIAN)} />
           <Chip label="Mean price" value={money(MEAN)} />
@@ -95,27 +96,27 @@ export default function DatasetInsights() {
           <Chip label="Priciest" value={money(PRICES[PRICES.length - 1])} />
         </div>
         <p className="hint">
-          Model trained on {METRICS.trainRows.toLocaleString()} rows and tested on{' '}
-          {METRICS.testRows.toLocaleString()}, reaching R² {METRICS.r2} with a mean error of{' '}
-          {money(METRICS.mae)}.
+          Model trained on {METRICS.trainRows.toLocaleString('en-IN')} rows and tested on{' '}
+          {METRICS.testRows.toLocaleString('en-IN')}, reaching R² {METRICS.r2} with a mean error of{' '}
+          {money(METRICS.mae)} (5-fold cross-validated R² {METRICS.cvR2}).
         </p>
       </div>
 
       <div className="card">
         <h2>What Moves the Price Most</h2>
         <p className="hint">
-          Average dollars each spec shifts a prediction away from the typical laptop, across
-          all {LAPTOPS.length.toLocaleString()} listings. {IMPORTANCE_ROWS[0].label},{' '}
+          Average rupees each spec shifts a prediction away from the typical laptop, across all{' '}
+          {LAPTOPS.length.toLocaleString('en-IN')} listings. {IMPORTANCE_ROWS[0].label},{' '}
           {IMPORTANCE_ROWS[1].label} and {IMPORTANCE_ROWS[2].label} matter most.
         </p>
         <div className="chart">
-          <ResponsiveContainer width="100%" height={290}>
+          <ResponsiveContainer width="100%" height={330}>
             <BarChart data={IMPORTANCE_ROWS} layout="vertical"
               margin={{ left: 12, right: 24, top: 5, bottom: 5 }}>
               <CartesianGrid horizontal={false} stroke={c.grid} strokeDasharray="3 3" />
-              <XAxis type="number" tickFormatter={money}
+              <XAxis type="number" tickFormatter={moneyShort}
                 stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
-              <YAxis type="category" dataKey="label" width={96}
+              <YAxis type="category" dataKey="label" width={118}
                 stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
               <Tooltip {...tooltipStyle(c)}
                 formatter={(v) => [money(v), 'Average effect']} />
@@ -128,8 +129,8 @@ export default function DatasetInsights() {
       <div className="card">
         <h2>Price Distribution</h2>
         <p className="hint">
-          Listings per {money(BUCKET)} band. {SHARE_UNDER_1500}% cost under {money(1500)}, with
-          a long tail of high-end machines.
+          Listings per {money(BUCKET)} band. {SHARE_CHEAP}% cost under {money(CHEAP)}, with a long
+          tail of gaming and workstation machines.
         </p>
         <div className="chart">
           <ResponsiveContainer width="100%" height={250}>
@@ -162,7 +163,7 @@ export default function DatasetInsights() {
               <BarChart data={BRANDS} layout="vertical"
                 margin={{ left: 8, right: 16, top: 5, bottom: 5 }}>
                 <CartesianGrid horizontal={false} stroke={c.grid} strokeDasharray="3 3" />
-                <XAxis type="number" tickFormatter={money}
+                <XAxis type="number" tickFormatter={moneyShort}
                   stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
                 <YAxis type="category" dataKey="key" width={82}
                   stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
@@ -190,7 +191,7 @@ export default function DatasetInsights() {
                 <CartesianGrid vertical={false} stroke={c.grid} strokeDasharray="3 3" />
                 <XAxis dataKey="key" tickFormatter={(v) => `${v}GB`}
                   stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
-                <YAxis width={56} tickFormatter={money}
+                <YAxis width={56} tickFormatter={moneyShort}
                   stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
                 <Tooltip {...tooltipStyle(c)}
                   formatter={(v, _n, p) => [`${money(v)} (${p.payload.count} listings)`, 'Average']}

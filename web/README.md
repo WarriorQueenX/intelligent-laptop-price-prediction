@@ -1,16 +1,40 @@
-# React + Vite
+# Laptop Price Prediction — Web App
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite front-end for the Linear Regression price model. It predicts a fair
+price in rupees from a laptop's specs, then compares that with the listed price.
 
-Currently, two official plugins are available:
+## Running it
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+Vite prints a `Local:` URL (usually http://localhost:5173). Other scripts:
+`npm run build` for a production build, `npm run lint` for Oxlint.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## How the prediction works
 
-## Expanding the Oxlint configuration
+No ML library runs in the browser. `../export_model.py` trains the model and writes
+the intercept, the scaler mean/scale for each numeric feature, and every one-hot
+coefficient to `src/data/modelData.json`. `src/lib/model.js` reloads those numbers
+and scores a laptop with plain arithmetic:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+    price = intercept + Σ coef × (value − mean) / scale + Σ one-hot coefficients
+
+Because the model is linear, the same numbers also explain a prediction: each
+feature's contribution is measured against an average laptop, and
+`baseline + Σ contributions` adds back up to the predicted price.
+
+Re-run `python export_model.py` from the project root whenever the dataset,
+cleaning or feature list changes — don't hand-edit `modelData.json`.
+
+## Layout
+
+| Path | What's in it |
+| --- | --- |
+| `src/lib/model.js` | Scoring, explanation, value rating, rupee formatting |
+| `src/lib/theme.js`, `src/lib/ThemeContext.jsx` | Light/dark theme and chart palette |
+| `src/components/` | One file per tab, plus the searchable laptop picker |
+| `src/data/modelData.json` | Generated — model coefficients, options and the 991 listings |
+| `src/App.jsx`, `src/App.css` | Shell, tab bar and the whole design system |

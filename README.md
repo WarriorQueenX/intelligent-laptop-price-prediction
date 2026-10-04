@@ -427,29 +427,51 @@ P. Tian, "Research on Laptop Price Predictive Model Based on Linear Regression, 
 
 ## Web App
 
-An interactive React front-end for the trained model, in `web/`.
+An interactive React front-end for the price model, in `web/`.
+
+### Dataset
+
+The app is built on `laptops_india.csv` — **991 laptop listings from the Indian
+market**, priced in rupees (₹9,800 to ₹4,54,490, median ₹61,900). The file has no
+missing values and no duplicate rows.
+
+> Note: this is a different file from `laptops.csv`, the Kaggle euro-priced dataset
+> the notebook analyses. The website's numbers therefore won't match the notebook's.
 
 ### How it works
 
-`export_model.py` re-runs the notebook's Linear Regression pipeline and dumps the
-intercept, the `StandardScaler` mean/scale, and every one-hot coefficient into
+`export_model.py` trains the Linear Regression pipeline (`StandardScaler` on the
+numeric columns, `OneHotEncoder` on the categorical ones) and dumps the intercept,
+every scaler mean/scale and every one-hot coefficient into
 `web/src/data/modelData.json`. The browser then reproduces predictions with plain
-arithmetic — no ML library is shipped to the client.
+arithmetic — no ML library is shipped to the client. The script checks itself: the
+exported numbers reproduce scikit-learn's predictions for all 991 rows exactly.
 
 ```bash
 python export_model.py     # retrain + regenerate modelData.json
 cd web && npm install && npm run dev
 ```
 
+### Model inputs (15)
+
+| Numeric | Categorical |
+| --- | --- |
+| RAM, storage capacity, CPU cores, display size, screen width, screen height, touch screen | brand, processor brand, processor tier, storage type, GPU brand, GPU type, operating system, warranty |
+
+Thread count and secondary storage were tested and dropped: threads track core
+count, and 98% of listings have no second drive, so neither changed the test score.
+Product rating was left out too — it lowered the score, and someone pricing a
+laptop by its specs has no rating to enter.
+
 ### Features
 
 | Tab | What it does |
 | --- | --- |
 | Single Prediction | Pick a laptop (searchable) or enter custom specs. Shows predicted vs actual price, the % gap, a value badge (under / fair / over at the ±10% threshold), and the top features driving that specific price. |
-| Feature Impact | Sliders and dropdowns for RAM, storage, screen, brand, CPU, GPU, storage type, touch and status. Price updates live, with line charts sweeping each numeric feature across its range. |
+| Feature Impact | Sliders and dropdowns for every model input. Price updates live, with charts sweeping RAM, storage, CPU cores and display size across their range. |
 | Compare Laptops | Compare 2–5 laptops side by side. Differing specs are highlighted, each price gap is broken down by which spec caused how much of it, and the best-value laptop is flagged. |
 | Best Deals | Scores every listing and ranks the most under- and overpriced ones, filterable by brand and max price, with a listed-vs-predicted scatter plot. |
-| Budget Finder | Set a budget plus must-haves (brand, min RAM/storage, SSD, dedicated GPU, new only) and get a top pick ranked by best specs or biggest discount. If nothing fits, it says what meeting those needs would cost. |
+| Budget Finder | Set a budget plus must-haves (brand, min RAM/storage, SSD, dedicated GPU, touch screen) and get a top pick ranked by best specs or biggest discount. If nothing fits, it says what meeting those needs would cost. |
 | Dataset Insights | EDA summary: price distribution, average price by brand and by RAM, and which specs move the model's predictions the most. |
 
 The UI has light and dark themes (toggle in the header, remembered per browser)
@@ -463,6 +485,7 @@ because the model is linear.
 
 | Metric | Value |
 | --- | --- |
-| Test R² | 0.873 |
-| Test MAE | $237.89 |
-| Rows | 2,156 (after dedup/cleaning) |
+| Test R² | 0.877 |
+| Test MAE | ₹13,862 |
+| 5-fold CV R² | 0.795 |
+| Rows | 991 (792 train / 199 test) |

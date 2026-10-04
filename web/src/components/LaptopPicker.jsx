@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
 import { LAPTOPS, money } from '../lib/model'
 
-const LIMIT = 150 // rendering all 2000+ <option> nodes locks up the browser
+const LIMIT = 150 // rendering all ~1000 <option> nodes at once makes the page sluggish
 
-const labelOf = (l) =>
-  `${l.brand} ${l.model} — ${l.cpu} / ${l.ram}GB / ${l.storage}GB ${l.storageType} / ${l.screen}" — ${money(l.actualPrice)}`
+// The dataset's title already spells out the key specs, so it needs no extra detail.
+const labelOf = (l) => `${l.name} — ${money(l.actualPrice)}`
 
 /**
  * Searchable laptop dropdown. The full list is far too long to put in a <select>,
@@ -29,7 +29,7 @@ export default function LaptopPicker({ value, onChange }) {
     <div className="picker">
       <input
         type="search"
-        placeholder="Search by brand, model, CPU..."
+        placeholder="Search by brand, model, processor..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />

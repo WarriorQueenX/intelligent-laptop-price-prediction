@@ -3,54 +3,56 @@ import {
   ComposedChart, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceDot,
 } from 'recharts'
-import { OPTIONS, LIMITS, predict, money } from '../lib/model'
+import { OPTIONS, predict, money, moneyShort, title, warrantyLabel } from '../lib/model'
 import { useChartColors } from '../lib/ThemeContext'
 import { tooltipStyle } from '../lib/theme'
 
 const START_SPEC = {
-  brand: 'Asus', cpu: 'Intel Core i5', ram: 16, storage: 512,
-  storageType: 'SSD', gpu: 'Integrated', screen: 15.6, touch: 'No', status: 'New',
+  brand: 'asus', processorBrand: 'intel', processorTier: 'core i5', cores: 8,
+  ram: 16, storage: 512, storageType: 'SSD', gpuBrand: 'intel', gpuType: 'integrated',
+  display: 15.6, resWidth: 1920, resHeight: 1080, touch: 'No', os: 'windows', warranty: '1',
 }
 
-// GPU dropdown is grouped so the user picks a family instead of scrolling 60 models.
-const GPU_GROUPS = {
-  Integrated: ['Integrated'],
-  NVIDIA: OPTIONS.gpu.filter((g) => /^(RTX|GTX|MX|Quadro|T\d|A\d)/.test(g)),
-  AMD: OPTIONS.gpu.filter((g) => /Radeon/i.test(g)),
+// Slider bounds are kept near the range actually present in the data — the model
+// has never seen a 96 GB laptop, so letting the slider go there invents prices.
+const RANGES = {
+  ram: { min: 2, max: 64, step: 2 },
+  storage: { min: 64, max: 2048, step: 64 },
+  cores: { min: 2, max: 24, step: 1 },
+  display: { min: 11, max: 18, step: 0.1 },
 }
-GPU_GROUPS.Other = OPTIONS.gpu.filter(
-  (g) => !GPU_GROUPS.Integrated.includes(g) && !GPU_GROUPS.NVIDIA.includes(g) && !GPU_GROUPS.AMD.includes(g)
-)
 
-const RAM_STEPS = [2, 4, 8, 12, 16, 24, 32, 40, 48, 64]
-const STORAGE_STEPS = [128, 256, 512, 1000, 1500, 2000]
-const SCREEN_STEPS = [11.6, 12.5, 13.3, 14, 15.6, 16, 17.3]
+const RAM_STEPS = [2, 4, 8, 12, 16, 24, 32, 48, 64]
+const STORAGE_STEPS = [64, 128, 256, 512, 1024, 1536, 2048]
+const CORE_STEPS = [2, 4, 6, 8, 10, 12, 14, 16]
+const DISPLAY_STEPS = [11.6, 13.3, 14, 15.6, 16, 17.3]
 
 /** Re-scores the laptop across a range of one feature, holding everything else fixed. */
 function sweep(spec, key, values) {
   return values.map((v) => ({ x: v, price: predict({ ...spec, [key]: v }) }))
 }
 
-function Sweep({ title, data, current, unit, c }) {
+function Sweep({ title: heading, data, current, unit, c }) {
+  const id = heading.replace(/\W/g, '')
   return (
     <div className="chart">
-      <h4>{title}</h4>
+      <h4>{heading}</h4>
       <ResponsiveContainer width="100%" height={190}>
         <ComposedChart data={data} margin={{ left: 0, right: 14, top: 10, bottom: 4 }}>
           <defs>
-            <linearGradient id={`fill-${title.replace(/\W/g, '')}`} x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={`fill-${id}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={c.accent} stopOpacity={0.28} />
               <stop offset="100%" stopColor={c.accent} stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke={c.grid} vertical={false} />
           <XAxis dataKey="x" stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
-          <YAxis tickFormatter={(v) => `$${Math.round(v)}`} width={58}
+          <YAxis tickFormatter={moneyShort} width={58}
             stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
           <Tooltip formatter={(v) => [money(v), 'Predicted']}
             labelFormatter={(l) => `${l}${unit}`} {...tooltipStyle(c)} />
           <Area type="monotone" dataKey="price" stroke="none"
-            fill={`url(#fill-${title.replace(/\W/g, '')})`} isAnimationActive={false} />
+            fill={`url(#fill-${id})`} isAnimationActive={false} />
           <Line type="monotone" dataKey="price" stroke={c.accent} strokeWidth={2.5}
             dot={{ r: 2.5, fill: c.accent, strokeWidth: 0 }}
             activeDot={{ r: 5 }} isAnimationActive={false} />
@@ -71,12 +73,14 @@ export default function FeatureImpact() {
 
   const ramData = useMemo(() => sweep(spec, 'ram', RAM_STEPS), [spec])
   const storageData = useMemo(() => sweep(spec, 'storage', STORAGE_STEPS), [spec])
-  const screenData = useMemo(() => sweep(spec, 'screen', SCREEN_STEPS), [spec])
+  const coreData = useMemo(() => sweep(spec, 'cores', CORE_STEPS), [spec])
+  const displayData = useMemo(() => sweep(spec, 'display', DISPLAY_STEPS), [spec])
 
-  // Per-unit sensitivity, read straight off the sweeps.
-  const ramRate = (predict({ ...spec, ram: spec.ram + 8 }) - price)
-  const storageRate = (predict({ ...spec, storage: spec.storage + 256 }) - price)
-  const screenRate = (predict({ ...spec, screen: spec.screen + 1 }) - price)
+  // Per-unit sensitivity, read straight off the model.
+  const ramRate = predict({ ...spec, ram: spec.ram + 8 }) - price
+  const storageRate = predict({ ...spec, storage: spec.storage + 256 }) - price
+  const coreRate = predict({ ...spec, cores: spec.cores + 2 }) - price
+  const displayRate = predict({ ...spec, display: spec.display + 1 }) - price
   const touchRate = predict({ ...spec, touch: spec.touch === 'Yes' ? 'No' : 'Yes' }) - price
 
   const pct = (d) => `${d >= 0 ? '+' : ''}${((d / price) * 100).toFixed(1)}%`
@@ -90,8 +94,9 @@ export default function FeatureImpact() {
           <span className="price-value big">{money(price)}</span>
         </div>
         <p className="hint">
-          {spec.brand} · {spec.cpu} · {spec.ram}GB RAM · {spec.storage}GB {spec.storageType} ·{' '}
-          {spec.gpu} · {spec.screen}" · Touch: {spec.touch} · {spec.status}
+          {title(spec.brand)} · {title(spec.processorTier)} · {spec.cores} cores · {spec.ram}GB RAM ·{' '}
+          {spec.storage}GB {spec.storageType} · {title(spec.gpuType)} {title(spec.gpuBrand)} ·{' '}
+          {spec.display}" · Touch: {spec.touch} · {title(spec.os)}
         </p>
       </div>
 
@@ -100,60 +105,82 @@ export default function FeatureImpact() {
         <div className="grid">
           <label className="field">
             <span>RAM — <b>{spec.ram} GB</b></span>
-            <input type="range" min={LIMITS.ram.min} max={LIMITS.ram.max} step={2}
+            <input type="range" {...RANGES.ram}
               value={spec.ram} onChange={(e) => set('ram', Number(e.target.value))} />
             <small>{delta(ramRate)} ({pct(ramRate)}) per +8 GB</small>
           </label>
 
           <label className="field">
             <span>Storage — <b>{spec.storage} GB</b></span>
-            <input type="range" min={LIMITS.storage.min} max={LIMITS.storage.max} step={128}
+            <input type="range" {...RANGES.storage}
               value={spec.storage} onChange={(e) => set('storage', Number(e.target.value))} />
             <small>{delta(storageRate)} ({pct(storageRate)}) per +256 GB</small>
           </label>
 
           <label className="field">
-            <span>Screen — <b>{spec.screen}"</b></span>
-            <input type="range" min={LIMITS.screen.min} max={17.3} step={0.1}
-              value={spec.screen} onChange={(e) => set('screen', Number(e.target.value))} />
-            <small>{delta(screenRate)} ({pct(screenRate)}) per +1 inch</small>
+            <span>CPU Cores — <b>{spec.cores}</b></span>
+            <input type="range" {...RANGES.cores}
+              value={spec.cores} onChange={(e) => set('cores', Number(e.target.value))} />
+            <small>{delta(coreRate)} ({pct(coreRate)}) per +2 cores</small>
+          </label>
+
+          <label className="field">
+            <span>Display — <b>{spec.display}"</b></span>
+            <input type="range" {...RANGES.display}
+              value={spec.display} onChange={(e) => set('display', Number(e.target.value))} />
+            <small>{delta(displayRate)} ({pct(displayRate)}) per +1 inch</small>
           </label>
 
           <label className="field">
             <span>Brand</span>
             <select value={spec.brand} onChange={(e) => set('brand', e.target.value)}>
-              {OPTIONS.brand.map((b) => <option key={b}>{b}</option>)}
+              {OPTIONS.brand.map((b) => <option key={b} value={b}>{title(b)}</option>)}
             </select>
           </label>
 
           <label className="field">
-            <span>GPU</span>
-            <select value={spec.gpu} onChange={(e) => set('gpu', e.target.value)}>
-              {Object.entries(GPU_GROUPS).map(([group, list]) =>
-                list.length ? (
-                  <optgroup key={group} label={group}>
-                    {list.map((g) => <option key={g}>{g}</option>)}
-                  </optgroup>
-                ) : null
-              )}
+            <span>Processor</span>
+            <select value={spec.processorTier} onChange={(e) => set('processorTier', e.target.value)}>
+              {OPTIONS.processorTier.map((p) => <option key={p} value={p}>{title(p)}</option>)}
             </select>
           </label>
 
           <label className="field">
-            <span>Status</span>
-            <select value={spec.status} onChange={(e) => set('status', e.target.value)}>
-              {OPTIONS.status.map((s) => <option key={s}>{s}</option>)}
+            <span>GPU Type</span>
+            <select value={spec.gpuType} onChange={(e) => set('gpuType', e.target.value)}>
+              {OPTIONS.gpuType.map((g) => <option key={g} value={g}>{title(g)}</option>)}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>GPU Brand</span>
+            <select value={spec.gpuBrand} onChange={(e) => set('gpuBrand', e.target.value)}>
+              {OPTIONS.gpuBrand.map((g) => <option key={g} value={g}>{title(g)}</option>)}
             </select>
           </label>
 
           <label className="field">
             <span>Storage Type</span>
             <select value={spec.storageType} onChange={(e) => set('storageType', e.target.value)}>
-              {OPTIONS.storageType.map((s) => <option key={s}>{s}</option>)}
+              {OPTIONS.storageType.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
 
           <label className="field">
+            <span>Operating System</span>
+            <select value={spec.os} onChange={(e) => set('os', e.target.value)}>
+              {OPTIONS.os.map((o) => <option key={o} value={o}>{title(o)}</option>)}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Warranty</span>
+            <select value={spec.warranty} onChange={(e) => set('warranty', e.target.value)}>
+              {OPTIONS.warranty.map((w) => <option key={w} value={w}>{warrantyLabel(w)}</option>)}
+            </select>
+          </label>
+
+          <div className="field">
             <span>Touch Screen</span>
             <div className="toggle">
               {['No', 'Yes'].map((v) => (
@@ -163,14 +190,7 @@ export default function FeatureImpact() {
               ))}
             </div>
             <small>Switching adds {delta(touchRate)} ({pct(touchRate)})</small>
-          </label>
-
-          <label className="field">
-            <span>CPU</span>
-            <select value={spec.cpu} onChange={(e) => set('cpu', e.target.value)}>
-              {OPTIONS.cpu.map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </label>
+          </div>
         </div>
         <button className="reset" onClick={() => setSpec(START_SPEC)}>Reset to defaults</button>
       </div>
@@ -185,8 +205,10 @@ export default function FeatureImpact() {
             current={{ x: spec.ram, y: price }} />
           <Sweep title="Price vs Storage" data={storageData} unit=" GB" c={c}
             current={{ x: spec.storage, y: price }} />
-          <Sweep title="Price vs Screen Size" data={screenData} unit='"' c={c}
-            current={{ x: spec.screen, y: price }} />
+          <Sweep title="Price vs CPU Cores" data={coreData} unit=" cores" c={c}
+            current={{ x: spec.cores, y: price }} />
+          <Sweep title="Price vs Display Size" data={displayData} unit='"' c={c}
+            current={{ x: spec.display, y: price }} />
         </div>
       </div>
     </div>

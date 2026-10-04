@@ -47,7 +47,7 @@ export default function App() {
 
           <div className="stat-strip">
             <Stat label="Model" value="Linear Regression" accent />
-            <Stat label="Laptops" value={LAPTOPS.length.toLocaleString()} />
+            <Stat label="Laptops" value={LAPTOPS.length.toLocaleString('en-IN')} />
             <Stat label="Test R²" value={METRICS.r2} />
             <Stat label="Mean Error" value={money(METRICS.mae)} />
           </div>

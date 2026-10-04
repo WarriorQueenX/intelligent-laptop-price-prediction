@@ -2,23 +2,28 @@ import { useState } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { LAPTOPS, predict, explain, valueRating, specOf, money, formatValue } from '../lib/model'
+import {
+  LAPTOPS, predict, explain, valueRating, specOf, money, moneyShort, formatValue, title,
+  warrantyLabel,
+} from '../lib/model'
 import LaptopPicker from './LaptopPicker'
 import { useChartColors } from '../lib/ThemeContext'
 import { tooltipStyle } from '../lib/theme'
 
 const MAX = 5
 const SPEC_ROWS = [
-  ['Brand', (l) => l.brand],
-  ['Model', (l) => l.model],
-  ['CPU', (l) => l.cpu],
+  ['Model', (l) => l.name],
+  ['Brand', (l) => title(l.brand)],
+  ['Processor', (l) => `${title(l.processorTier)} (${title(l.processorBrand)})`],
+  ['CPU Cores', (l) => `${l.cores}`],
   ['RAM', (l) => `${l.ram} GB`],
-  ['Storage', (l) => `${l.storage} GB`],
-  ['Storage Type', (l) => l.storageType],
-  ['GPU', (l) => l.gpu],
-  ['Screen', (l) => `${l.screen}"`],
+  ['Storage', (l) => `${l.storage} GB ${l.storageType}`],
+  ['GPU', (l) => `${title(l.gpuType)} (${title(l.gpuBrand)})`],
+  ['Display', (l) => `${l.display}"`],
+  ['Resolution', (l) => `${l.resWidth} x ${l.resHeight}`],
   ['Touch', (l) => l.touch],
-  ['Status', (l) => l.status],
+  ['OS', (l) => title(l.os)],
+  ['Warranty', (l) => warrantyLabel(l.warranty)],
 ]
 
 /**
@@ -72,7 +77,7 @@ export default function CompareLaptops() {
   const differs = (fn) => new Set(picked.map(fn)).size > 1
 
   const chartData = rows.map((r) => ({
-    name: `${r.laptop.brand} ${r.laptop.model}`.slice(0, 18),
+    name: r.laptop.name.slice(0, 18),
     Actual: Math.round(r.laptop.actualPrice),
     Predicted: Math.round(r.predicted),
   }))
@@ -150,7 +155,7 @@ export default function CompareLaptops() {
               <CartesianGrid strokeDasharray="3 3" stroke={c.grid} vertical={false} />
               <XAxis dataKey="name" interval={0} angle={-12} textAnchor="end"
                 stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
-              <YAxis tickFormatter={(v) => `$${v}`} width={60}
+              <YAxis tickFormatter={moneyShort} width={60}
                 stroke={c.axis} tick={{ fill: c.axis, fontSize: 11 }} />
               <Tooltip formatter={(v) => money(v)} {...tooltipStyle(c)} />
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 4 }} />

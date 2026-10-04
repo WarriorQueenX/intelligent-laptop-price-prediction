@@ -1,7 +1,9 @@
-// Linear Regression scoring, ported from the notebook pipeline.
+// Linear Regression scoring, ported from the training pipeline in export_model.py.
 // modelData.json holds the intercept, the StandardScaler mean/scale + coefficient
 // for every numeric feature, and the one-hot coefficient for every category.
 // So a prediction is just: intercept + sum(coef * scaled_value).
+//
+// Prices are Indian rupees (INR), straight from the dataset.
 
 import modelData from '../data/modelData.json'
 
@@ -13,40 +15,44 @@ const { intercept, numeric, categorical } = modelData
 
 // Human-readable labels for the raw feature names used by the model.
 export const LABELS = {
-  ram_gb: 'RAM',
-  storage_gb: 'Storage',
-  screen_size: 'Screen Size',
-  is_ssd: 'SSD Drive',
+  ram_memory: 'RAM',
+  primary_storage_capacity: 'Storage',
+  num_cores: 'CPU Cores',
+  display_size: 'Display Size',
+  resolution_width: 'Screen Width',
+  resolution_height: 'Screen Height',
   is_touch: 'Touch Screen',
-  is_new: 'Condition (New)',
-  has_discrete_gpu: 'Discrete GPU',
   brand: 'Brand',
-  cpu: 'CPU',
-  gpu: 'GPU',
-  storage_type: 'Storage Type',
-  status: 'Status',
-  touch: 'Touch',
+  processor_brand: 'Processor Brand',
+  processor_tier: 'Processor',
+  primary_storage_type: 'Storage Type',
+  gpu_brand: 'GPU Brand',
+  gpu_type: 'GPU Type',
+  OS: 'Operating System',
+  year_of_warranty: 'Warranty',
 }
 
 /**
- * Turns the UI spec object into the exact feature record the model expects,
- * recreating the derived columns from the notebook's feature-engineering step.
+ * Turns the UI spec object into the exact feature record the model expects.
+ * Keys here must match the column names used in export_model.py.
  */
 function toFeatures(spec) {
   return {
-    ram_gb: Number(spec.ram),
-    storage_gb: Number(spec.storage),
-    screen_size: Number(spec.screen),
-    is_ssd: spec.storageType === 'SSD' ? 1 : 0,
+    ram_memory: Number(spec.ram),
+    primary_storage_capacity: Number(spec.storage),
+    num_cores: Number(spec.cores),
+    display_size: Number(spec.display),
+    resolution_width: Number(spec.resWidth),
+    resolution_height: Number(spec.resHeight),
     is_touch: spec.touch === 'Yes' ? 1 : 0,
-    is_new: spec.status === 'New' ? 1 : 0,
-    has_discrete_gpu: spec.gpu !== 'Integrated' ? 1 : 0,
     brand: spec.brand,
-    cpu: spec.cpu,
-    gpu: spec.gpu,
-    storage_type: spec.storageType,
-    status: spec.status,
-    touch: spec.touch,
+    processor_brand: spec.processorBrand,
+    processor_tier: spec.processorTier,
+    primary_storage_type: spec.storageType,
+    gpu_brand: spec.gpuBrand,
+    gpu_type: spec.gpuType,
+    OS: spec.os,
+    year_of_warranty: String(spec.warranty),
   }
 }
 
@@ -62,8 +68,9 @@ export function predict(spec) {
     total += block.coefs[f[name]] ?? 0
   }
   // Linear regression can go negative on extreme low-end spec combinations
-  // (3 rows in the dataset do). A negative price is meaningless, so floor it.
-  return Math.max(total, 50)
+  // (4 rows in the dataset do). A negative price is meaningless, so floor it
+  // at a price below anything the dataset actually contains (cheapest ₹9,800).
+  return Math.max(total, 5000)
 }
 
 // Average one-hot contribution per categorical feature, measured across the whole
@@ -83,16 +90,41 @@ for (const [name, block] of Object.entries(categorical)) {
 export const BASELINE_PRICE =
   intercept + Object.values(avgCatContribution).reduce((a, b) => a + b, 0)
 
+// The dataset stores values lowercase ("asus", "core i5", "windows"), which looks
+// sloppy in the UI, so they are capitalised for display only.
+const UPPERCASE = new Set(['hp', 'lg', 'msi', 'amd', 'arm', 'dos', 'ssd', 'hdd'])
+export const title = (value) =>
+  String(value)
+    .split(' ')
+    .map((word) => {
+      if (UPPERCASE.has(word)) return word.toUpperCase()
+      if (/^i\d/.test(word)) return word // keep "i5" rather than "I5"
+      return word.charAt(0).toUpperCase() + word.slice(1)
+    })
+    .join(' ')
+
+/** "1" -> "1 year", "No information" -> "Not stated". */
+export const warrantyLabel = (value) =>
+  String(value) === 'No information' ? 'Not stated' : `${value} year${value === '1' ? '' : 's'}`
+
 // The model's 0/1 flags and bare numbers read badly in the UI, so add units/words.
-const UNITS = { ram_gb: ' GB', storage_gb: ' GB', screen_size: '"' }
-const FLAGS = ['is_ssd', 'is_touch', 'is_new', 'has_discrete_gpu']
+const UNITS = {
+  ram_memory: ' GB',
+  primary_storage_capacity: ' GB',
+  display_size: '"',
+  num_cores: ' cores',
+  resolution_width: ' px',
+  resolution_height: ' px',
+}
 export const formatValue = (feature, v) => {
-  if (FLAGS.includes(feature)) return v === 1 ? 'Yes' : 'No'
-  return `${v}${UNITS[feature] ?? ''}`
+  if (feature === 'is_touch') return v === 1 ? 'Yes' : 'No'
+  if (feature === 'year_of_warranty') return warrantyLabel(v)
+  if (feature in UNITS) return `${v}${UNITS[feature]}`
+  return title(v)
 }
 
 /**
- * Breaks a prediction down into per-feature dollar contributions relative to an
+ * Breaks a prediction down into per-feature rupee contributions relative to an
  * average laptop. BASELINE_PRICE + sum(contributions) === predict(spec).
  */
 export function explain(spec) {
@@ -122,7 +154,7 @@ export function explain(spec) {
     .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
 }
 
-/** ±10% fair-price threshold, same rule as the notebook. */
+/** ±10% fair-price threshold. */
 export function valueRating(actual, predicted) {
   const diff = actual - predicted
   const pct = (diff / predicted) * 100
@@ -141,33 +173,54 @@ export function valueRating(actual, predicted) {
 export function specOf(laptop) {
   return {
     brand: laptop.brand,
-    cpu: laptop.cpu,
+    processorBrand: laptop.processorBrand,
+    processorTier: laptop.processorTier,
+    cores: laptop.cores,
     ram: laptop.ram,
     storage: laptop.storage,
     storageType: laptop.storageType,
-    gpu: laptop.gpu,
-    screen: laptop.screen,
+    gpuBrand: laptop.gpuBrand,
+    gpuType: laptop.gpuType,
+    display: laptop.display,
+    resWidth: laptop.resWidth,
+    resHeight: laptop.resHeight,
     touch: laptop.touch,
-    status: laptop.status,
+    os: laptop.os,
+    warranty: laptop.warranty,
   }
 }
 
-/** Renders negatives as −$120 rather than $-120. */
+/** One-line spec summary for result lists. */
+export const specLine = (l) =>
+  `${title(l.processorTier)} · ${l.cores} cores · ${l.ram} GB · ${l.storage} GB ${l.storageType} · ` +
+  `${l.display}" · ${title(l.gpuType)} ${title(l.gpuBrand)}`
+
+/** Rupees with Indian digit grouping, e.g. ₹1,24,990. Negatives read −₹1,200. */
 export const money = (n) => {
   const rounded = Math.round(n)
-  return (rounded < 0 ? '−$' : '$') + Math.abs(rounded).toLocaleString('en-US')
+  return (rounded < 0 ? '−₹' : '₹') + Math.abs(rounded).toLocaleString('en-IN')
+}
+
+/** Compact rupees for chart axes: ₹45k, ₹1.5L (lakh). */
+export const moneyShort = (n) => {
+  const v = Math.abs(Math.round(n))
+  const sign = n < 0 ? '−' : ''
+  if (v >= 100000) return `${sign}₹${(v / 100000).toFixed(v % 100000 === 0 ? 0 : 1)}L`
+  if (v >= 1000) return `${sign}₹${Math.round(v / 1000)}k`
+  return `${sign}₹${v}`
 }
 
 /** Basic sanity bounds so the model is never asked to score nonsense. */
 export const LIMITS = {
-  ram: { min: 2, max: 64 },
-  storage: { min: 128, max: 2000 },
-  screen: { min: 11, max: 18 },
+  ram: { min: 2, max: 128 },
+  storage: { min: 32, max: 4096 },
+  cores: { min: 1, max: 32 },
+  display: { min: 10, max: 20 },
 }
 
 /**
  * Every dataset laptop scored once at module load, so the Best Deals and Budget
- * tabs can filter/sort without re-running 2k predictions on each keystroke.
+ * tabs can filter/sort without re-running a thousand predictions on each keystroke.
  */
 export const SCORED = LAPTOPS.map((l) => {
   const predicted = predict(specOf(l))
@@ -180,8 +233,11 @@ export function validate(spec) {
     errors.push(`RAM must be between ${LIMITS.ram.min} and ${LIMITS.ram.max} GB`)
   if (spec.storage < LIMITS.storage.min || spec.storage > LIMITS.storage.max)
     errors.push(`Storage must be between ${LIMITS.storage.min} and ${LIMITS.storage.max} GB`)
-  if (spec.screen < LIMITS.screen.min || spec.screen > LIMITS.screen.max)
-    errors.push(`Screen must be between ${LIMITS.screen.min}" and ${LIMITS.screen.max}"`)
-  if (!spec.brand || !spec.cpu || !spec.gpu) errors.push('Brand, CPU and GPU are required')
+  if (spec.cores < LIMITS.cores.min || spec.cores > LIMITS.cores.max)
+    errors.push(`CPU cores must be between ${LIMITS.cores.min} and ${LIMITS.cores.max}`)
+  if (spec.display < LIMITS.display.min || spec.display > LIMITS.display.max)
+    errors.push(`Display size must be between ${LIMITS.display.min}" and ${LIMITS.display.max}"`)
+  if (!spec.brand || !spec.processorTier || !spec.gpuType)
+    errors.push('Brand, processor and GPU type are required')
   return errors
 }
