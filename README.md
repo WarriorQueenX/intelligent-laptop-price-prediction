@@ -151,7 +151,7 @@ The final machine-learning pipeline uses hardware and specification features sui
 
 ### Numerical Features
 
-- `ram_memory`
+- `ram_memory`cd "C:\Users\iteja\OneDrive\Desktop\VIT\intelligent-laptop-price-prediction"
 - `primary_storage_capacity`
 - `num_cores`
 - `display_size`
@@ -181,3 +181,82 @@ OneHotEncoder(
     handle_unknown="ignore",
     drop="first"
 )
+```
+
+---
+
+## Web Application
+
+An interactive React front-end for the trained model lives in `web/`. It turns the
+analysis into a usable tool: pick a laptop from the dataset or enter specifications
+by hand, get the model's estimated fair price in rupees, and see whether a listed
+price looks reasonable.
+
+### How It Works
+
+`export_model.py` trains the Linear Regression pipeline described above and exports
+its numbers — the intercept, every `StandardScaler` mean and scale, and every
+one-hot coefficient — to `web/src/data/modelData.json`.
+
+The browser then reproduces predictions with plain arithmetic:
+
+```
+price = intercept + Σ coef × (value − mean) / scale + Σ one-hot coefficients
+```
+
+No machine learning library is shipped to the browser and no backend server is
+needed, so the application runs as a static site. The export script checks itself:
+the exported numbers reproduce scikit-learn's predictions for all 991 rows exactly.
+
+Because the model is linear, the same numbers also explain each prediction. Every
+feature's contribution is measured against an average laptop in the dataset, so
+`baseline + Σ contributions` adds back up to the predicted price.
+
+### Running the Application
+
+```bash
+python export_model.py      # optional: retrain and regenerate modelData.json
+cd web
+npm install                 # first time only
+npm run dev
+```
+
+Vite prints a local address, usually http://localhost:5173. `npm run build`
+produces a deployable build in `web/dist`.
+
+### Features
+
+| Tab | Description |
+|---|---|
+| Single Prediction | Pick a laptop from the dataset or enter custom specifications. Shows predicted price against the listed price, the percentage gap, a value verdict (underpriced / fairly priced / overpriced at a ±10% threshold), and the specifications driving that particular price. |
+| Feature Impact | Sliders and dropdowns for every model input, with the predicted price updating live. Line charts sweep RAM, storage, CPU cores and display size across their range while all other specifications stay fixed. |
+| Compare Laptops | Compare 2–5 laptops side by side. Differing specifications are highlighted, each price gap is broken down by the specification responsible for it, and the best-value laptop is flagged. |
+| Best Deals | Scores every listing and ranks the most underpriced and overpriced ones, filterable by brand and maximum price, with a listed-versus-predicted scatter plot. |
+| Budget Finder | Set a budget and requirements (brand, minimum RAM and storage, SSD, dedicated GPU, touch screen) to get a top pick, ranked either by best specifications or biggest discount. If nothing fits, it reports what meeting those requirements would cost. |
+| Dataset Insights | Visual summary of the data: price distribution, average price by brand and by RAM, and which specifications move the model's predictions the most. |
+
+The interface provides light and dark themes and is usable down to phone widths.
+
+### Model Performance
+
+| Metric | Value |
+|---|---|
+| Test R² | 0.877 |
+| Test MAE | ₹13,862 |
+| 5-fold cross-validated R² | 0.795 |
+| Rows | 991 (792 train / 199 test) |
+
+The application uses the same 15 features listed under Feature Engineering. Thread
+count, secondary storage and product rating were tested as additional inputs and
+left out: thread count tracks core count, 98% of listings have no secondary drive,
+and rating lowered the test score.
+
+### Project Files
+
+| Path | Contents |
+|---|---|
+| `laptops_india.csv` | The 991-row dataset |
+| `export_model.py` | Training pipeline and model export |
+| `web/src/lib/model.js` | Prediction, explanation and value rating in the browser |
+| `web/src/components/` | One file per tab |
+| `web/src/data/modelData.json` | Generated model coefficients and listings |
