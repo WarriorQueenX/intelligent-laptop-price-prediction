@@ -2,7 +2,7 @@
 
 > **Beyond price prediction — explainable, fair-value decision support for laptop buyers**
 
-## 📌 Project Overview
+## Project Overview
 
 Laptop prices vary considerably across brands and configurations due to differences in processor, RAM, storage, GPU, display, operating system, warranty, and other specifications. For buyers, it can be difficult to determine whether a listed price is reasonable for the specifications offered.
 
@@ -27,7 +27,7 @@ The project follows the BASCE301 Exploratory Data Analysis course-project requir
 
 ---
 
-## 🎯 Problem Statement
+## Problem Statement
 
 Laptop prices can vary significantly even among machines with similar specifications. Consumers often lack a clear way to determine:
 
@@ -40,7 +40,7 @@ The project addresses this problem by combining statistical analysis, machine le
 
 ---
 
-## 🎯 Objectives
+## Objectives
 
 The project aims to:
 
@@ -56,7 +56,7 @@ The project aims to:
 
 ---
 
-## 📊 Dataset
+## Dataset
 
 ### Dataset Source
 
@@ -80,7 +80,7 @@ The project uses the 991-row dataset as the final project dataset.
 
 ---
 
-## 🔍 Exploratory Data Analysis
+## Exploratory Data Analysis
 
 The EDA follows the recommended BASCE301 project workflow.
 
@@ -145,7 +145,7 @@ Potential outliers were identified using statistical and visualization-based app
 
 ---
 
-## 🛠️ Feature Engineering
+## Feature Engineering
 
 The final machine-learning pipeline uses hardware and specification features suitable for laptop price prediction.
 
